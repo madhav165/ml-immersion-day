@@ -1,0 +1,102 @@
+AWSTemplateFormatVersion: 2010-09-09
+Parameters: 
+  InstanceTypeParameter: 
+    Type: String
+    Default: ml.c5.4xlarge
+    AllowedValues: 
+      - ml.c5.4xlarge      
+      - ml.p3.2xlarge
+      - ml.p3.8xlarge
+    Description: Default is ml.c5.4xlarge, MXNet Labs require ml.p3.2xlarge, MXNet Lab3 requires ml.p3.8xlarge.
+Resources:
+  NotebookRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          Effect: Allow
+          Principal:
+            Service:
+              - sagemaker.amazonaws.com
+          Action:
+            - 'sts:AssumeRole'
+      Description: >-
+        The Role that the Jupyter Notebook runs under, provides access to S3,
+        and AI Services such as comprehend.
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/ComprehendFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonS3FullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonSageMakerFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonForecastFullAccess'
+        - 'arn:aws:iam::aws:policy/service-role/AmazonPersonalizeFullAccess'
+        - 'arn:aws:iam::aws:policy/IAMFullAccess'
+      Tags:
+        - Key: Project
+          Value: ML Immersion Day v2
+          
+  NotebookInstance:
+    Type: 'AWS::SageMaker::NotebookInstance'
+    Properties:
+      NotebookInstanceName: ML-Immersion-Day-v2
+      InstanceType: 
+           Ref: InstanceTypeParameter
+      RoleArn: !GetAtt NotebookRole.Arn
+      LifecycleConfigName: !GetAtt NotebookLifecycle.NotebookInstanceLifecycleConfigName
+      Tags:
+        - Key: Project
+          Value: ML Immersion Day v2
+          
+  NotebookLifecycle:
+    Type: 'AWS::SageMaker::NotebookInstanceLifecycleConfig'
+    Properties:
+        NotebookInstanceLifecycleConfigName: SetupDefaultNotebooksV2
+        OnCreate:
+            - Content:
+                Fn::Base64:
+                    !Sub |
+                    #!/bin/bash
+
+                    #MXNet
+                    #wget https://ml-immersionday.workshop.aws/labs/mxnet_labs.zip
+                    aws s3 cp s3://ee-assets-prod-us-east-1/modules/e306a29b69ee467f9b11209e68accd32/v1/mxnet_labs.zip mxnet_labs.zip
+                    unzip mxnet_labs.zip -d '/home/ec2-user/SageMaker/Deep_Learning_MXNet_Gluon/'
+               
+                    #SKlearn / Model Monitor
+                    #wget https://ml-immersionday.workshop.aws/labs/mm.zip
+                    aws s3 cp s3://ee-assets-prod-us-east-1/modules/e306a29b69ee467f9b11209e68accd32/v1/mm.zip mm.zip
+                    unzip mm.zip -d '/home/ec2-user/SageMaker/Process_train_explain_monitor_BYOC'
+
+                    #TensorFlow
+                    #wget https://ml-immersionday.workshop.aws/labs/tf-labs-v4.zip
+                    aws s3 cp s3://ee-assets-prod-us-east-1/modules/e306a29b69ee467f9b11209e68accd32/v1/tf-labs-v4.zip tf-labs-v4.zip
+                    unzip tf-labs-v4.zip -d '/home/ec2-user/SageMaker/Train_tune_inference_TensorFlow'
+
+                    #PyTorch
+                    #wget https://ml-immersionday.workshop.aws/labs/pytorch_labs.zip
+                    aws s3 cp s3://ee-assets-prod-us-east-1/modules/e306a29b69ee467f9b11209e68accd32/v1/pytorch_labs.zip pytorch_labs.zip
+                    unzip pytorch_labs.zip -d '/home/ec2-user/SageMaker/Train_tune_PyTorch'
+
+                                        
+                    #xgboost
+                    #wget https://github.com/awslabs/amazon-sagemaker-examples/raw/master/introduction_to_amazon_algorithms/xgboost_abalone/xgboost_abalone.ipynb -P '/home/ec2-user/SageMaker/Train_host_built-in_algorithm'
+                    wget https://github.com/aws/amazon-sagemaker-examples/blob/main/introduction_to_amazon_algorithms/xgboost_abalone/xgboost_abalone.ipynb -P /home/ec2-user/SageMaker/Train_host_built-in_algorithm
+
+                    #Pipeline
+                    git clone --depth 1 https://github.com/aws-samples/amazon-sagemaker-predict-accessibility
+                    mv amazon-sagemaker-predict-accessibility '/home/ec2-user/SageMaker/ML_Pipeline'
+
+                    #Personalize
+                    wget https://raw.githubusercontent.com/aws-samples/amazon-personalize-samples/master/next_steps/workshops/Immersion_Day/user_personalization_contextual_example.ipynb -P '/home/ec2-user/SageMaker/Personalize'
+
+                    #forecast
+                    #forecast samples: https://github.com/aws-samples/amazon-forecast-samples/tree/master/notebooks/immersion_day
+                      #data folder https://github.com/aws-samples/amazon-forecast-samples/blob/master/notebooks/immersion_day/data/
+                      #notebooks https://github.com/aws-samples/amazon-forecast-samples/tree/master/notebooks/immersion_day/notebooks 
+                      #clone the main repo, copy over the folders 
+
+                    #git clone --depth 1 https://github.com/aws-samples/amazon-forecast-samples.git
+                    #mv amazon-forecast-samples/notebooks/immersion_day/ '/home/ec2-user/SageMaker/Getting started with Amazon Forecast/'
+                   
+                    #fix permissions
+                    chown -R ec2-user:ec2-user /home/ec2-user/SageMaker/*
